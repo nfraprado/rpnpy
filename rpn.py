@@ -108,6 +108,11 @@ def parseArgs():
         help=('Python file to be parsed at startup. Usually used to define '
               'custom functions'))
 
+    parser.add_argument(
+        '--engineeringNotation', action='store_true', default=False,
+        help=('Enable engineering notation for values. Requires the '
+              'engineering_notation python package to be installed'))
+
     return parser.parse_args()
 
 
@@ -119,7 +124,8 @@ if __name__ == '__main__':
         print(__version__)
     else:
         calc = Calculator(autoPrint=args.print, splitLines=args.splitLines,
-                          separator=args.separator, debug=args.debug)
+                          separator=args.separator, debug=args.debug,
+                          engineeringNotation=args.engineeringNotation)
 
         if args.startupFile:
             try:

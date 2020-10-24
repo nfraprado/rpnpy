@@ -9,6 +9,11 @@ import functools
 from pprint import pprint
 
 try:
+    from engineering_notation import EngNumber
+except ImportError:
+    pass
+
+try:
     import builtins
 except ImportError:
     if sys.version_info < (3,):
@@ -63,10 +68,12 @@ class Calculator:
     NO_VALUE = object()
 
     def __init__(self, autoPrint=False, splitLines=True, separator=None,
-                 outfp=sys.stdout, errfp=sys.stderr, debug=False):
+                 engineeringNotation=False, outfp=sys.stdout, errfp=sys.stderr,
+                 debug=False):
         self._autoPrint = autoPrint
         self._splitLines = splitLines
         self._separator = separator
+        self._engineeringNotation = engineeringNotation
         self._outfp = outfp
         self._errfp = errfp
         self._debug = debug
@@ -522,42 +529,58 @@ class Calculator:
 
         return False, self.NO_VALUE
 
+    def _tryEngNotation(self, command):
+        if self._engineeringNotation:
+            try:
+                value = EngNumber(command)
+            except decimal.InvalidOperation:
+                return None
+            except NameError:
+                self.err('Failed to use engineering notation. Please install '
+                         'the engineering_notation python package')
+                return None
+            else:
+                return value
+
     def _tryEvalExec(self, command, modifiers, count):
         errors = []
         possibleWhiteSpace = False
-        try:
-            value = eval(command, globals(), self._variables)
-        except BaseException as e:
-            err = str(e)
-            errors.append('Could not eval(%r): %s' % (command, err))
-            if (self._splitLines and
-                    err.startswith(
-                        'unexpected EOF while parsing (<string>, line 1)')):
-                possibleWhiteSpace = True
 
+        value = _tryEngNotation(command)
+
+        if value is None:
             try:
-                exec(command, globals(), self._variables)
+                value = eval(command, globals(), self._variables)
             except BaseException as e:
                 err = str(e)
-                errors.append('Could not exec(%r): %s' % (command, err))
-                if (not possibleWhiteSpace and self._splitLines and
+                errors.append('Could not eval(%r): %s' % (command, err))
+                if (self._splitLines and
                         err.startswith(
-                            'unexpected EOF while parsing (<string>, '
-                            'line 1)')):
+                            'unexpected EOF while parsing (<string>, line 1)')):
                     possibleWhiteSpace = True
 
-                if possibleWhiteSpace:
-                    errors.append('Did you accidentally include whitespace '
-                                  'in a command line?')
-                raise CalculatorError(*errors)
-            else:
-                self.debug('exec(%r) worked.' % command)
-                return True, self.NO_VALUE
-        else:
-            self.debug('eval %s worked: %r' % (command, value))
-            count = 1 if count is None else count
-            self._finalize(value, modifiers=modifiers, repeat=count)
-            return True, value
+                try:
+                    exec(command, globals(), self._variables)
+                except BaseException as e:
+                    err = str(e)
+                    errors.append('Could not exec(%r): %s' % (command, err))
+                    if (not possibleWhiteSpace and self._splitLines and
+                            err.startswith(
+                                'unexpected EOF while parsing (<string>, '
+                                'line 1)')):
+                        possibleWhiteSpace = True
+
+                    if possibleWhiteSpace:
+                        errors.append('Did you accidentally include whitespace '
+                                      'in a command line?')
+                    raise CalculatorError(*errors)
+                else:
+                    self.debug('exec(%r) worked.' % command)
+                    return True, self.NO_VALUE
+        self.debug('eval %s worked: %r' % (command, value))
+        count = 1 if count is None else count
+        self._finalize(value, modifiers=modifiers, repeat=count)
+        return True, value
 
     def convertStackArgs(self, args):
         """Convert stack items to arguments for functions.
