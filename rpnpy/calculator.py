@@ -546,7 +546,7 @@ class Calculator:
         errors = []
         possibleWhiteSpace = False
 
-        value = _tryEngNotation(command)
+        value = self._tryEngNotation(command)
 
         if value is None:
             try:
